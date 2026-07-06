@@ -201,7 +201,6 @@
     submitBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
       submitBtn.disabled = true; analyzeBtn.disabled = true;
-      $('formpage').className = 'formpage';
       const fileForUpload = buildForm();
       const fileForAnalyze = buildForm();
 
