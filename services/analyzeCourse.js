@@ -3,21 +3,17 @@
 //  2) Evaluation questions built on the CPFTC Master Template
 //
 // Follows the C.L.E.A.R. brief (Phase 3 + Phase 4).
-// Uses Azure OpenAI Chat Completions. Configure via env:
-//   AZURE_OPENAI_ENDPOINT     e.g. https://my-resource.openai.azure.com
-//   AZURE_OPENAI_API_KEY
-//   AZURE_OPENAI_DEPLOYMENT   your chat model deployment name
-//   AZURE_OPENAI_API_VERSION  default 2024-06-01
+// Uses the Anthropic Claude API. Configure via env:
+//   ANTHROPIC_API_KEY   get one at https://console.anthropic.com
+//   ANTHROPIC_MODEL     default: claude-sonnet-5
 
 const {
-  AZURE_OPENAI_ENDPOINT,
-  AZURE_OPENAI_API_KEY,
-  AZURE_OPENAI_DEPLOYMENT,
-  AZURE_OPENAI_API_VERSION = '2024-06-01',
+  ANTHROPIC_API_KEY,
+  ANTHROPIC_MODEL = 'claude-sonnet-5',
 } = process.env;
 
 function llmConfigured() {
-  return Boolean(AZURE_OPENAI_ENDPOINT && AZURE_OPENAI_API_KEY && AZURE_OPENAI_DEPLOYMENT);
+  return Boolean(ANTHROPIC_API_KEY);
 }
 
 const SYSTEM_PROMPT = `คุณคือผู้ช่วยของ CPF Training Center ทำหน้าที่อ่าน "หลักการและเหตุผล" ของหลักสูตร แล้ว (1) สรุปความเข้าใจหลักสูตร และ (2) สร้างแบบประเมินหลังอบรมตาม Master Template ของ CPFTC
@@ -27,7 +23,7 @@ const SYSTEM_PROMPT = `คุณคือผู้ช่วยของ CPF Trai
 - คำถามทุกข้อต้องผูกกับวัตถุประสงค์ เนื้อหา ทักษะ ผลที่คาดว่าจะได้รับ อุปสรรค หรือ support ที่ต้องการ (ไม่เอาคำถาม generic)
 - แบบประเมินต้องคงโครง 5 section: Strategic Alignment, Performance & Skills, Deep Dive Insights, Actionable Support, Learner Segment
 - ตอบเป็นภาษาไทยในเนื้อหา แต่คีย์ JSON เป็นภาษาอังกฤษตามสคีมา
-- ตอบกลับเป็น JSON เท่านั้น ไม่มีข้อความอื่นหุ้ม`;
+- ตอบกลับเป็น JSON เท่านั้น ไม่มีข้อความอื่นหุ้ม ไม่ต้องใส่ code fence`;
 
 function buildUserPrompt(courseText, meta = {}) {
   const metaLines = [
@@ -74,30 +70,33 @@ ${courseText.slice(0, 24000)}
 }`;
 }
 
-async function callAzureOpenAI(messages) {
-  const url = `${AZURE_OPENAI_ENDPOINT.replace(/\/$/, '')}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_OPENAI_API_VERSION}`;
-
-  const res = await fetch(url, {
+async function callClaude(systemPrompt, userPrompt) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'api-key': AZURE_OPENAI_API_KEY,
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      messages,
+      model: ANTHROPIC_MODEL,
+      max_tokens: 4000,
       temperature: 0.3,
-      max_tokens: 3000,
-      response_format: { type: 'json_object' },
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
     }),
   });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = data && data.error ? data.error.message : `HTTP ${res.status}`;
-    throw new Error(`Azure OpenAI error: ${detail}`);
+    throw new Error(`Claude API error: ${detail}`);
   }
-  const content = data.choices && data.choices[0] && data.choices[0].message.content;
-  if (!content) throw new Error('Azure OpenAI returned no content.');
+  const content =
+    data.content && data.content[0] && data.content[0].type === 'text'
+      ? data.content[0].text
+      : null;
+  if (!content) throw new Error('Claude API returned no content.');
   return content;
 }
 
@@ -106,21 +105,14 @@ async function analyzeCourse(courseText, meta = {}) {
     throw new Error('Extracted text is too short to analyze (document may be scanned images or empty).');
   }
   if (!llmConfigured()) {
-    throw new Error(
-      'AI is not configured. Set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT.'
-    );
+    throw new Error('AI is not configured. Set ANTHROPIC_API_KEY.');
   }
 
-  const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: buildUserPrompt(courseText, meta) },
-  ];
-
-  const raw = await callAzureOpenAI(messages);
+  const raw = await callClaude(SYSTEM_PROMPT, buildUserPrompt(courseText, meta));
   try {
     return JSON.parse(raw);
   } catch {
-    // In the rare case the model wraps JSON in text, grab the first {...} block.
+    // In case the model wraps JSON in text or a code fence, grab the first {...} block.
     const match = raw.match(/\{[\s\S]*\}/);
     if (match) return JSON.parse(match[0]);
     throw new Error('Could not parse AI response as JSON.');

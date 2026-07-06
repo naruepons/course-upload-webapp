@@ -21,16 +21,12 @@ services:
         value: uploads
       - key: MAX_UPLOAD_MB
         value: "25"
-      - key: AZURE_OPENAI_API_VERSION
-        value: "2024-06-01"
+      - key: ANTHROPIC_MODEL
+        value: "claude-sonnet-5"
       # --- secrets: enter these in the Render dashboard ---
       - key: GITHUB_TOKEN
         sync: false
       - key: UPLOAD_KEY
         sync: false
-      - key: AZURE_OPENAI_ENDPOINT
-        sync: false
-      - key: AZURE_OPENAI_API_KEY
-        sync: false
-      - key: AZURE_OPENAI_DEPLOYMENT
+      - key: ANTHROPIC_API_KEY
         sync: false
