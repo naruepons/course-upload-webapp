@@ -81,6 +81,33 @@
     .analysis ul { margin: 4px 0; padding-left: 20px; }
     .qsec { border-left: 3px solid var(--primary); padding-left: 12px; margin: 10px 0; }
     .qsec .qtype { color: var(--muted); font-size: 12px; }
+    /* ===== Question page (rendered form) ===== */
+    .formpage { display: none; width: 100%; max-width: 640px; }
+    .formpage.show { display: block; }
+    .formpage .fhead {
+      background: var(--card); border: 1px solid var(--border); border-top: 6px solid var(--primary);
+      border-radius: 12px; padding: 20px 24px; margin-bottom: 14px;
+    }
+    .formpage .fhead h2 { margin: 0 0 6px; font-size: 20px; }
+    .formpage .fhead p { margin: 0; color: var(--muted); font-size: 14px; }
+    .formpage .fsec {
+      background: #eef2ff; color: var(--primary-dark); font-weight: 700; font-size: 15px;
+      border-radius: 10px; padding: 10px 16px; margin: 18px 0 10px;
+    }
+    .formpage .fq {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 20px; margin-bottom: 12px;
+    }
+    .formpage .fq .qtext { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .formpage .fq .qmeta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    .formpage .opt { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; }
+    .formpage .scale { display: flex; justify-content: space-between; align-items: center; gap: 4px; margin-top: 8px; }
+    .formpage .scale label { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex: 1; margin: 0; font-weight: 400; }
+    .formpage textarea {
+      width: 100%; min-height: 70px; border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; font-size: 14px; font-family: inherit; resize: vertical;
+    }
+    .formpage .fnote { font-size: 12px; color: var(--muted); text-align: center; margin: 10px 0 0; }
     .spinner { display:inline-block; width:14px; height:14px; border:2px solid #bfdbfe; border-top-color: var(--primary); border-radius:50%; animation: spin .8s linear infinite; vertical-align:-2px; margin-right:6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -111,13 +138,16 @@
     <input type="file" id="fileInput" />
 
     <div class="row">
-      <button id="submitBtn" disabled>อัปโหลดไปยัง GitHub</button>
-      <button id="analyzeBtn" class="secondary" disabled title="วิเคราะห์ไฟล์ด้วย AI โดยไม่ต้องอัปโหลด">วิเคราะห์ด้วย AI</button>
+      <button id="submitBtn" disabled>Submit — อัปโหลดและสร้างแบบประเมิน</button>
+      <button id="analyzeBtn" class="secondary" disabled title="วิเคราะห์ไฟล์ด้วย AI โดยไม่ต้องอัปโหลด">วิเคราะห์อย่างเดียว</button>
     </div>
 
     <div class="status" id="status"></div>
     <div class="analysis" id="analysis"></div>
   </div>
+
+  <!-- ===== Question page (rendered from AI analysis) ===== -->
+  <div class="formpage" id="formpage"></div>
 
   <!-- ===== Files list ===== -->
   <div class="card">
@@ -156,50 +186,74 @@
     ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
     dropzone.addEventListener('drop', e => { if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]); });
 
-    // ---- Upload ----
-    submitBtn.addEventListener('click', async () => {
-      if (!selectedFile) return;
-      submitBtn.disabled = true; analyzeBtn.disabled = true;
-      showStatus('info', '<span class="spinner"></span> กำลังอัปโหลด...');
+    function buildForm() {
       const form = new FormData();
       form.append('file', selectedFile);
       form.append('courseName', meta().courseName);
       form.append('courseCode', meta().courseCode);
+      return form;
+    }
+
+    async function runAnalyze(formData) {
+      const res = await fetch('/api/analyze', { method: 'POST', body: formData, headers: headers() });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'วิเคราะห์ไม่สำเร็จ');
+      return data.analysis;
+    }
+
+    // ---- Submit: upload -> AI analyze (หลักการและเหตุผล) -> render question page ----
+    submitBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      submitBtn.disabled = true; analyzeBtn.disabled = true;
+      $('formpage').className = 'formpage';
+      const fileForUpload = buildForm();
+      const fileForAnalyze = buildForm();
+
+      // Step 1: upload to GitHub (non-blocking for analysis if it fails)
+      showStatus('info', '<span class="spinner"></span> (1/2) กำลังอัปโหลดไฟล์...');
+      let uploadNote = '';
       try {
-        const res = await fetch('/api/upload', { method: 'POST', body: form, headers: headers() });
+        const res = await fetch('/api/upload', { method: 'POST', body: fileForUpload, headers: headers() });
         const data = await res.json();
         if (data.ok) {
           const link = data.htmlUrl ? ` — <a href="${data.htmlUrl}" target="_blank">ดูใน GitHub</a>` : '';
-          showStatus('ok', `✅ อัปโหลดสำเร็จ: <b>${data.originalName}</b>${link}`);
-          setFile(null); fileInput.value = '';
+          uploadNote = `✅ อัปโหลดสำเร็จ: <b>${esc(data.originalName)}</b>${link}`;
           loadFiles();
         } else {
-          showStatus('err', '❌ ' + (data.error || 'อัปโหลดไม่สำเร็จ'));
-          submitBtn.disabled = false; analyzeBtn.disabled = false;
+          uploadNote = '⚠️ อัปโหลดไม่สำเร็จ (' + esc(data.error || '') + ') แต่จะวิเคราะห์ต่อ';
         }
       } catch (err) {
-        showStatus('err', '❌ ' + err.message);
+        uploadNote = '⚠️ อัปโหลดไม่สำเร็จ (' + esc(err.message) + ') แต่จะวิเคราะห์ต่อ';
+      }
+
+      // Step 2: analyze rationale & generate questions
+      showStatus('info', uploadNote + '<br><span class="spinner"></span> (2/2) กำลังวิเคราะห์หลักการและเหตุผล และสร้างคำถาม...');
+      try {
+        const analysis = await runAnalyze(fileForAnalyze);
+        showStatus('ok', uploadNote + '<br>✅ สร้างแบบประเมินเสร็จแล้ว — เลื่อนลงเพื่อดูหน้าคำถาม');
+        renderAnalysis(analysis);
+        renderQuestionPage(analysis);
+        setFile(null); fileInput.value = '';
+      } catch (err) {
+        showStatus('err', uploadNote + '<br>❌ ' + esc(err.message));
         submitBtn.disabled = false; analyzeBtn.disabled = false;
       }
     });
 
-    // ---- Analyze (local selected file, no upload needed) ----
+    // ---- Analyze only (no upload) ----
     analyzeBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
       analyzeBtn.disabled = true;
       showStatus('info', '<span class="spinner"></span> กำลังวิเคราะห์ด้วย AI...');
       analysisEl.className = 'analysis';
-      const form = new FormData();
-      form.append('file', selectedFile);
-      form.append('courseName', meta().courseName);
-      form.append('courseCode', meta().courseCode);
+      $('formpage').className = 'formpage';
       try {
-        const res = await fetch('/api/analyze', { method: 'POST', body: form, headers: headers() });
-        const data = await res.json();
+        const analysis = await runAnalyze(buildForm());
         analyzeBtn.disabled = false;
-        if (data.ok) { showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว'); renderAnalysis(data.analysis); }
-        else showStatus('err', '❌ ' + (data.error || 'วิเคราะห์ไม่สำเร็จ'));
-      } catch (err) { analyzeBtn.disabled = false; showStatus('err', '❌ ' + err.message); }
+        showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว');
+        renderAnalysis(analysis);
+        renderQuestionPage(analysis);
+      } catch (err) { analyzeBtn.disabled = false; showStatus('err', '❌ ' + esc(err.message)); }
     });
 
     function li(label, val) {
@@ -239,6 +293,50 @@
       analysisEl.className = 'analysis show';
     }
 
+    // ---- Render the generated questions as a real question page ----
+    function renderQuestionPage(a) {
+      const fp = $('formpage');
+      const form = (a && a.evaluation_form) || {};
+      const sections = form.sections || [];
+      if (!sections.length) { fp.className = 'formpage'; fp.innerHTML = ''; return; }
+
+      const cName = $('courseName').value.trim();
+      const cCode = $('courseCode').value.trim();
+      let html = `<div class="fhead">
+        <h2>${esc(form.title || 'แบบประเมินหลังการอบรม')}</h2>
+        ${cName || cCode ? `<p><b>${esc(cName)}</b>${cCode ? ' (' + esc(cCode) + ')' : ''}</p>` : ''}
+        ${form.instruction ? `<p>${esc(form.instruction)}</p>` : ''}
+      </div>`;
+
+      let qn = 0;
+      sections.forEach((sec, si) => {
+        html += `<div class="fsec">ส่วนที่ ${si + 1}: ${esc(sec.section_name || '')}</div>`;
+        (sec.questions || []).forEach((q) => {
+          qn++;
+          const name = 'q' + qn;
+          html += `<div class="fq">
+            <div class="qtext">${qn}. ${esc(q.question_text)}</div>
+            <div class="qmeta">[${esc(q.question_type || '')}${q.linked_to ? ' · อิงจาก: ' + esc(q.linked_to) : ''}]</div>`;
+          if (q.question_type === 'rating') {
+            html += `<div class="scale">` +
+              [1,2,3,4,5].map(v => `<label><input type="radio" name="${name}" value="${v}">${v}</label>`).join('') +
+              `</div><div class="scale"><span class="hint">น้อยที่สุด</span><span class="hint" style="margin-left:auto">มากที่สุด</span></div>`;
+          } else if (q.question_type === 'multiple_choice' && q.answer_options && q.answer_options.length) {
+            html += q.answer_options.map(o =>
+              `<label class="opt"><input type="radio" name="${name}" value="${esc(o)}">${esc(o)}</label>`).join('');
+          } else {
+            html += `<textarea placeholder="พิมพ์คำตอบของคุณ..."></textarea>`;
+          }
+          html += `</div>`;
+        });
+      });
+      html += `<p class="fnote">Draft สร้างโดย AI จากไฟล์หลักการและเหตุผล — ต้องผ่าน Human Review ก่อนใช้งานจริง</p>`;
+
+      fp.innerHTML = html;
+      fp.className = 'formpage show';
+      fp.scrollIntoView({ behavior: 'smooth' });
+    }
+
     // ---- Files list ----
     async function loadFiles() {
       filesList.innerHTML = '<li class="empty">กำลังโหลด...</li>';
@@ -272,7 +370,7 @@
         });
         const data = await res.json();
         btn.disabled = false; btn.textContent = 'วิเคราะห์';
-        if (data.ok) { showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว: ' + esc(data.sourceName)); renderAnalysis(data.analysis); window.scrollTo({top:0,behavior:'smooth'}); }
+        if (data.ok) { showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว: ' + esc(data.sourceName)); renderAnalysis(data.analysis); renderQuestionPage(data.analysis); }
         else showStatus('err', '❌ ' + (data.error || 'วิเคราะห์ไม่สำเร็จ'));
       } catch (err) { btn.disabled = false; btn.textContent = 'วิเคราะห์'; showStatus('err', '❌ ' + err.message); }
     }
