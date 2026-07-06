@@ -21,12 +21,12 @@ services:
         value: uploads
       - key: MAX_UPLOAD_MB
         value: "25"
-      - key: ANTHROPIC_MODEL
-        value: "claude-sonnet-5"
+      - key: GEMINI_MODEL
+        value: "gemini-2.5-pro"
       # --- secrets: enter these in the Render dashboard ---
       - key: GITHUB_TOKEN
         sync: false
       - key: UPLOAD_KEY
         sync: false
-      - key: ANTHROPIC_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
