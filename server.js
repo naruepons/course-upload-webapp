@@ -36,6 +36,16 @@ function ghConfigured() {
   return Boolean(GITHUB_TOKEN && GITHUB_OWNER && GITHUB_REPO);
 }
 
+// multer decodes multipart filenames as latin1, which garbles Thai (e.g. "à¸«à¸¥...").
+// Re-decode as UTF-8; fall back to the original if the result is invalid.
+function fixFileName(name) {
+  if (!name) return name;
+  // Already contains real Unicode (e.g. proper Thai) — leave untouched.
+  if (/[Ā-￿]/.test(name)) return name;
+  const fixed = Buffer.from(name, 'latin1').toString('utf8');
+  return fixed.includes('�') ? name : fixed;
+}
+
 // Make a safe, unique file name: <timestamp>-<sanitized-original>
 function buildStoredName(originalName) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -179,7 +189,7 @@ app.post('/api/analyze', (req, res) => {
 
       if (req.file) {
         buffer = req.file.buffer;
-        name = req.file.originalname;
+        name = fixFileName(req.file.originalname);
       } else if (req.body && req.body.repoPath) {
         if (!ghConfigured()) {
           return res.status(500).json({ ok: false, error: 'GitHub is not configured.' });
@@ -233,13 +243,14 @@ app.post('/api/upload', (req, res) => {
     }
 
     try {
-      const storedName = buildStoredName(req.file.originalname);
+      const originalName = fixFileName(req.file.originalname);
+      const storedName = buildStoredName(originalName);
       const repoPath = `${UPLOAD_PATH}/${storedName}`.replace(/\/+/g, '/');
       const courseName = (req.body.courseName || '').trim();
       const courseCode = (req.body.courseCode || '').trim();
 
       const commitMessage =
-        `Upload course file: ${req.file.originalname}` +
+        `Upload course file: ${originalName}` +
         (courseName ? ` | ${courseName}` : '') +
         (courseCode ? ` (${courseCode})` : '');
 
@@ -252,7 +263,7 @@ app.post('/api/upload', (req, res) => {
       return res.json({
         ok: true,
         fileName: storedName,
-        originalName: req.file.originalname,
+        originalName,
         sizeBytes: req.file.size,
         repoPath,
         htmlUrl: result.content && result.content.html_url,
