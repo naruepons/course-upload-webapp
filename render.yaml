@@ -1,0 +1,36 @@
+# Render Blueprint — auto-configures the web service when you connect this repo.
+# Secrets (sync: false) are NOT stored in the repo; Render will prompt you to
+# enter them in the dashboard on first deploy.
+services:
+  - type: web
+    name: course-upload-webapp
+    runtime: node
+    region: singapore          # closest Render region to Thailand
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: GITHUB_OWNER
+        value: naruepons
+      - key: GITHUB_REPO
+        value: course-upload-webapp
+      - key: GITHUB_BRANCH
+        value: main
+      - key: UPLOAD_PATH
+        value: uploads
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      - key: AZURE_OPENAI_API_VERSION
+        value: "2024-06-01"
+      # --- secrets: enter these in the Render dashboard ---
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: UPLOAD_KEY
+        sync: false
+      - key: AZURE_OPENAI_ENDPOINT
+        sync: false
+      - key: AZURE_OPENAI_API_KEY
+        sync: false
+      - key: AZURE_OPENAI_DEPLOYMENT
+        sync: false
