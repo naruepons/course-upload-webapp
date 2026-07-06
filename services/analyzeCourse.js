@@ -3,17 +3,17 @@
 //  2) Evaluation questions built on the CPFTC Master Template
 //
 // Follows the C.L.E.A.R. brief (Phase 3 + Phase 4).
-// Uses the Anthropic Claude API. Configure via env:
-//   ANTHROPIC_API_KEY   get one at https://console.anthropic.com
-//   ANTHROPIC_MODEL     default: claude-sonnet-5
+// Uses the Google Gemini API. Configure via env:
+//   GEMINI_API_KEY   get one free at https://aistudio.google.com/apikey
+//   GEMINI_MODEL     default: gemini-2.5-pro
 
 const {
-  ANTHROPIC_API_KEY,
-  ANTHROPIC_MODEL = 'claude-sonnet-5',
+  GEMINI_API_KEY,
+  GEMINI_MODEL = 'gemini-2.5-pro',
 } = process.env;
 
 function llmConfigured() {
-  return Boolean(ANTHROPIC_API_KEY);
+  return Boolean(GEMINI_API_KEY);
 }
 
 const SYSTEM_PROMPT = `คุณคือผู้ช่วยของ CPF Training Center ทำหน้าที่อ่าน "หลักการและเหตุผล" ของหลักสูตร แล้ว (1) สรุปความเข้าใจหลักสูตร และ (2) สร้างแบบประเมินหลังอบรมตาม Master Template ของ CPFTC
@@ -70,33 +70,35 @@ ${courseText.slice(0, 24000)}
 }`;
 }
 
-async function callClaude(systemPrompt, userPrompt) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+async function callGemini(systemPrompt, userPrompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 4000,
-      temperature: 0.3,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
     }),
   });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = data && data.error ? data.error.message : `HTTP ${res.status}`;
-    throw new Error(`Claude API error: ${detail}`);
+    throw new Error(`Gemini API error: ${detail}`);
   }
   const content =
-    data.content && data.content[0] && data.content[0].type === 'text'
-      ? data.content[0].text
-      : null;
-  if (!content) throw new Error('Claude API returned no content.');
+    data.candidates &&
+    data.candidates[0] &&
+    data.candidates[0].content &&
+    data.candidates[0].content.parts &&
+    data.candidates[0].content.parts.map((p) => p.text || '').join('');
+  if (!content) throw new Error('Gemini API returned no content.');
   return content;
 }
 
@@ -105,10 +107,10 @@ async function analyzeCourse(courseText, meta = {}) {
     throw new Error('Extracted text is too short to analyze (document may be scanned images or empty).');
   }
   if (!llmConfigured()) {
-    throw new Error('AI is not configured. Set ANTHROPIC_API_KEY.');
+    throw new Error('AI is not configured. Set GEMINI_API_KEY.');
   }
 
-  const raw = await callClaude(SYSTEM_PROMPT, buildUserPrompt(courseText, meta));
+  const raw = await callGemini(SYSTEM_PROMPT, buildUserPrompt(courseText, meta));
   try {
     return JSON.parse(raw);
   } catch {
