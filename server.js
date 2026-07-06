@@ -153,6 +153,7 @@ app.get('/api/health', (req, res) => {
     maxUploadMb: MAX_UPLOAD_MB,
     uploadKeyRequired: Boolean(UPLOAD_KEY),
     aiConfigured: llmConfigured(),
+    formCreationConfigured: Boolean(process.env.GAS_WEBAPP_URL),
   });
 });
 
@@ -214,6 +215,37 @@ app.post('/api/analyze', (req, res) => {
       res.status(status).json({ ok: false, error: e.message });
     }
   });
+});
+
+// Create a real Google Form from the approved evaluation form.
+// Forwards the JSON to a Google Apps Script Web App (see CreateForm.gs).
+app.post('/api/create-form', async (req, res) => {
+  const GAS_WEBAPP_URL = process.env.GAS_WEBAPP_URL;
+  if (!GAS_WEBAPP_URL) {
+    return res.status(500).json({
+      ok: false,
+      error: 'Google Form creation is not configured. Set GAS_WEBAPP_URL (Google Apps Script Web App URL).',
+    });
+  }
+  const sections = req.body && req.body.sections;
+  if (!Array.isArray(sections) || !sections.length) {
+    return res.status(400).json({ ok: false, error: 'No sections provided.' });
+  }
+  try {
+    const r = await fetch(GAS_WEBAPP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+      redirect: 'follow', // Apps Script replies via a 302 redirect
+    });
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error('Apps Script returned an unexpected response.'); }
+    if (!data.ok) throw new Error(data.error || 'Apps Script error');
+    res.json(data);
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message });
+  }
 });
 
 app.post('/api/upload', (req, res) => {
