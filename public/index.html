@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload หลักสูตร | Course File Upload</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --primary: #2563eb;
+      --primary-dark: #1e40af;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --ok: #16a34a;
+      --err: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, "Segoe UI", "Sarabun", Tahoma, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 40px 16px; gap: 20px;
+    }
+    .card {
+      background: var(--card); width: 100%; max-width: 640px;
+      border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.08);
+      padding: 32px; border: 1px solid var(--border);
+    }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    h2 { font-size: 17px; margin: 0 0 14px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+    label { display: block; font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+    input[type="text"] {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 14px;
+    }
+    .dropzone {
+      border: 2px dashed #c7d2fe; border-radius: 12px; padding: 28px 16px;
+      text-align: center; cursor: pointer; background: #f8faff; transition: .15s; margin-top: 6px;
+    }
+    .dropzone.drag { background: #eef2ff; border-color: var(--primary); }
+    .dropzone p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+    .dropzone strong { color: var(--primary); }
+    .filename { font-size: 14px; margin-top: 10px; color: var(--text); word-break: break-all; }
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+    button {
+      margin-top: 22px; width: 100%; padding: 12px; border: 0; border-radius: 10px;
+      background: var(--primary); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    button:hover { filter: brightness(.97); }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .status { margin-top: 18px; font-size: 14px; padding: 12px 14px; border-radius: 8px; display: none; }
+    .status.show { display: block; }
+    .status.ok { background: #f0fdf4; color: var(--ok); border: 1px solid #bbf7d0; }
+    .status.err { background: #fef2f2; color: var(--err); border: 1px solid #fecaca; }
+    .status.info { background: #eff6ff; color: var(--primary-dark); border: 1px solid #bfdbfe; }
+    .status a { color: inherit; font-weight: 600; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    input[type="file"] { display: none; }
+    ul.files { list-style: none; padding: 0; margin: 0; }
+    ul.files li {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+    }
+    ul.files li:last-child { border-bottom: 0; }
+    ul.files .fname { word-break: break-all; }
+    ul.files .actions { display: flex; gap: 8px; flex-shrink: 0; }
+    ul.files a, ul.files button.mini {
+      font-size: 12px; padding: 5px 10px; border-radius: 6px; text-decoration: none;
+      border: 1px solid var(--border); background: #fff; color: var(--primary); cursor: pointer; margin: 0; width: auto;
+    }
+    .empty { color: var(--muted); font-size: 14px; }
+    .analysis { margin-top: 16px; font-size: 14px; display: none; }
+    .analysis.show { display: block; }
+    .analysis h3 { font-size: 15px; margin: 16px 0 6px; color: var(--primary-dark); }
+    .analysis .box { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .analysis ul { margin: 4px 0; padding-left: 20px; }
+    .qsec { border-left: 3px solid var(--primary); padding-left: 12px; margin: 10px 0; }
+    .qsec .qtype { color: var(--muted); font-size: 12px; }
+    .spinner { display:inline-block; width:14px; height:14px; border:2px solid #bfdbfe; border-top-color: var(--primary); border-radius:50%; animation: spin .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <!-- ===== Upload ===== -->
+  <div class="card">
+    <h1>อัปโหลดไฟล์หลักสูตร</h1>
+    <p class="sub">ไฟล์จะถูกจัดเก็บใน GitHub repository โดยตรง (ไม่เก็บบน Azure)</p>
+
+    <div class="row">
+      <div>
+        <label for="courseName">ชื่อหลักสูตร</label>
+        <input type="text" id="courseName" placeholder="เช่น AI for Leader" />
+      </div>
+      <div>
+        <label for="courseCode">รหัสหลักสูตร</label>
+        <input type="text" id="courseCode" placeholder="เช่น SF_15261" />
+      </div>
+    </div>
+
+    <label>ไฟล์หลักการและเหตุผล (Word / PDF)</label>
+    <div class="dropzone" id="dropzone">
+      <p><strong>คลิกเพื่อเลือกไฟล์</strong> หรือลากไฟล์มาวางที่นี่</p>
+      <p class="hint">รองรับ .pdf .docx .txt (วิเคราะห์ AI ได้)</p>
+      <div class="filename" id="filename"></div>
+    </div>
+    <input type="file" id="fileInput" />
+
+    <div class="row">
+      <button id="submitBtn" disabled>อัปโหลดไปยัง GitHub</button>
+      <button id="analyzeBtn" class="secondary" disabled title="วิเคราะห์ไฟล์ด้วย AI โดยไม่ต้องอัปโหลด">วิเคราะห์ด้วย AI</button>
+    </div>
+
+    <div class="status" id="status"></div>
+    <div class="analysis" id="analysis"></div>
+  </div>
+
+  <!-- ===== Files list ===== -->
+  <div class="card">
+    <h2>ไฟล์ที่อัปโหลดแล้ว</h2>
+    <ul class="files" id="filesList"><li class="empty">กำลังโหลด...</li></ul>
+    <button class="secondary" id="refreshBtn">รีเฟรชรายการ</button>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fileInput = $('fileInput'), dropzone = $('dropzone'), filenameEl = $('filename');
+    const submitBtn = $('submitBtn'), analyzeBtn = $('analyzeBtn');
+    const statusEl = $('status'), analysisEl = $('analysis'), filesList = $('filesList');
+    let selectedFile = null;
+
+    const UPLOAD_KEY = ''; // set if server requires x-upload-key
+
+    function headers() { return UPLOAD_KEY ? { 'x-upload-key': UPLOAD_KEY } : {}; }
+    function meta() {
+      return { courseName: $('courseName').value, courseCode: $('courseCode').value };
+    }
+    function setFile(file) {
+      selectedFile = file;
+      filenameEl.textContent = file ? '📄 ' + file.name : '';
+      submitBtn.disabled = !file;
+      analyzeBtn.disabled = !file;
+    }
+    function showStatus(kind, html) {
+      statusEl.className = 'status show ' + kind;
+      statusEl.innerHTML = html;
+    }
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => setFile(e.target.files[0]));
+    ['dragover','dragenter'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+    ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+    dropzone.addEventListener('drop', e => { if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]); });
+
+    // ---- Upload ----
+    submitBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      submitBtn.disabled = true; analyzeBtn.disabled = true;
+      showStatus('info', '<span class="spinner"></span> กำลังอัปโหลด...');
+      const form = new FormData();
+      form.append('file', selectedFile);
+      form.append('courseName', meta().courseName);
+      form.append('courseCode', meta().courseCode);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: form, headers: headers() });
+        const data = await res.json();
+        if (data.ok) {
+          const link = data.htmlUrl ? ` — <a href="${data.htmlUrl}" target="_blank">ดูใน GitHub</a>` : '';
+          showStatus('ok', `✅ อัปโหลดสำเร็จ: <b>${data.originalName}</b>${link}`);
+          setFile(null); fileInput.value = '';
+          loadFiles();
+        } else {
+          showStatus('err', '❌ ' + (data.error || 'อัปโหลดไม่สำเร็จ'));
+          submitBtn.disabled = false; analyzeBtn.disabled = false;
+        }
+      } catch (err) {
+        showStatus('err', '❌ ' + err.message);
+        submitBtn.disabled = false; analyzeBtn.disabled = false;
+      }
+    });
+
+    // ---- Analyze (local selected file, no upload needed) ----
+    analyzeBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      analyzeBtn.disabled = true;
+      showStatus('info', '<span class="spinner"></span> กำลังวิเคราะห์ด้วย AI...');
+      analysisEl.className = 'analysis';
+      const form = new FormData();
+      form.append('file', selectedFile);
+      form.append('courseName', meta().courseName);
+      form.append('courseCode', meta().courseCode);
+      try {
+        const res = await fetch('/api/analyze', { method: 'POST', body: form, headers: headers() });
+        const data = await res.json();
+        analyzeBtn.disabled = false;
+        if (data.ok) { showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว'); renderAnalysis(data.analysis); }
+        else showStatus('err', '❌ ' + (data.error || 'วิเคราะห์ไม่สำเร็จ'));
+      } catch (err) { analyzeBtn.disabled = false; showStatus('err', '❌ ' + err.message); }
+    });
+
+    function li(label, val) {
+      if (val == null || (Array.isArray(val) && !val.length)) return '';
+      const body = Array.isArray(val) ? '<ul>' + val.map(v => `<li>${esc(v)}</li>`).join('') + '</ul>' : esc(val);
+      return `<h3>${label}</h3><div class="box">${body}</div>`;
+    }
+    function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+    function renderAnalysis(a) {
+      const cu = a.course_understanding || {};
+      const form = a.evaluation_form || {};
+      let html = '<h3>สรุปความเข้าใจหลักสูตร (Course Understanding)</h3>';
+      html += li('Course Goal', cu.course_goal);
+      html += li('Target Audience', cu.target_audience);
+      html += li('Learning Objectives', cu.key_learning_objectives);
+      html += li('Key Modules', cu.key_modules);
+      html += li('Core Skills', cu.core_skills);
+      html += li('Expected Outcomes', cu.expected_outcomes);
+      html += li('Risk / Limitation Topics', cu.risk_or_limitation_topics);
+      html += li('Evaluation Focus', cu.evaluation_focus);
+
+      if (form.sections && form.sections.length) {
+        html += `<h3>แบบประเมินที่สร้าง (Draft — ต้องผ่าน Human Review)</h3>`;
+        if (form.title) html += `<div class="box"><b>${esc(form.title)}</b>${form.instruction ? '<br>' + esc(form.instruction) : ''}</div>`;
+        form.sections.forEach(sec => {
+          html += `<div class="qsec"><b>${esc(sec.section_name)}</b>`;
+          (sec.questions || []).forEach((q, i) => {
+            html += `<div style="margin-top:6px">${i+1}. ${esc(q.question_text)} <span class="qtype">[${esc(q.question_type||'')}${q.linked_to ? ' · '+esc(q.linked_to) : ''}]</span>`;
+            if (q.answer_options && q.answer_options.length) html += '<ul>' + q.answer_options.map(o => `<li>${esc(o)}</li>`).join('') + '</ul>';
+            html += `</div>`;
+          });
+          html += `</div>`;
+        });
+      }
+      analysisEl.innerHTML = html;
+      analysisEl.className = 'analysis show';
+    }
+
+    // ---- Files list ----
+    async function loadFiles() {
+      filesList.innerHTML = '<li class="empty">กำลังโหลด...</li>';
+      try {
+        const res = await fetch('/api/files');
+        const data = await res.json();
+        if (!data.ok) { filesList.innerHTML = `<li class="empty">${esc(data.error)}</li>`; return; }
+        if (!data.files.length) { filesList.innerHTML = '<li class="empty">ยังไม่มีไฟล์</li>'; return; }
+        filesList.innerHTML = data.files.map(f => `
+          <li>
+            <span class="fname">📄 ${esc(f.name)} <span class="hint">(${(f.sizeBytes/1024).toFixed(0)} KB)</span></span>
+            <span class="actions">
+              <a href="${f.htmlUrl}" target="_blank">GitHub</a>
+              <button class="mini" data-path="${esc(f.path)}">วิเคราะห์</button>
+            </span>
+          </li>`).join('');
+        filesList.querySelectorAll('button.mini').forEach(btn =>
+          btn.addEventListener('click', () => analyzeStored(btn.dataset.path, btn)));
+      } catch (err) { filesList.innerHTML = `<li class="empty">โหลดรายการไม่สำเร็จ: ${esc(err.message)}</li>`; }
+    }
+
+    async function analyzeStored(repoPath, btn) {
+      btn.disabled = true; btn.textContent = 'กำลังวิเคราะห์...';
+      showStatus('info', '<span class="spinner"></span> กำลังวิเคราะห์ไฟล์จาก GitHub...');
+      analysisEl.className = 'analysis';
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers() },
+          body: JSON.stringify({ repoPath, ...meta() }),
+        });
+        const data = await res.json();
+        btn.disabled = false; btn.textContent = 'วิเคราะห์';
+        if (data.ok) { showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว: ' + esc(data.sourceName)); renderAnalysis(data.analysis); window.scrollTo({top:0,behavior:'smooth'}); }
+        else showStatus('err', '❌ ' + (data.error || 'วิเคราะห์ไม่สำเร็จ'));
+      } catch (err) { btn.disabled = false; btn.textContent = 'วิเคราะห์'; showStatus('err', '❌ ' + err.message); }
+    }
+
+    $('refreshBtn').addEventListener('click', loadFiles);
+    loadFiles();
+  </script>
+</body>
+</html>
