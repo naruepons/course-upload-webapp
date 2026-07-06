@@ -22,7 +22,7 @@ services:
       - key: MAX_UPLOAD_MB
         value: "25"
       - key: GEMINI_MODEL
-        value: "gemini-2.5-pro"
+        value: "gemini-2.5-flash"
       # --- secrets: enter these in the Render dashboard ---
       - key: GITHUB_TOKEN
         sync: false
