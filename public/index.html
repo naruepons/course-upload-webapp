@@ -143,11 +143,7 @@
     </div>
 
     <div class="status" id="status"></div>
-    <div class="analysis" id="analysis"></div>
   </div>
-
-  <!-- ===== Question page (rendered from AI analysis) ===== -->
-  <div class="formpage" id="formpage"></div>
 
   <!-- ===== Files list ===== -->
   <div class="card">
@@ -160,7 +156,7 @@
     const $ = (id) => document.getElementById(id);
     const fileInput = $('fileInput'), dropzone = $('dropzone'), filenameEl = $('filename');
     const submitBtn = $('submitBtn'), analyzeBtn = $('analyzeBtn');
-    const statusEl = $('status'), analysisEl = $('analysis'), filesList = $('filesList');
+    const statusEl = $('status'), filesList = $('filesList');
     let selectedFile = null;
 
     const UPLOAD_KEY = ''; // set if server requires x-upload-key
@@ -230,112 +226,34 @@
       showStatus('info', uploadNote + '<br><span class="spinner"></span> (2/2) กำลังวิเคราะห์หลักการและเหตุผล และสร้างคำถาม...');
       try {
         const analysis = await runAnalyze(fileForAnalyze);
-        showStatus('ok', uploadNote + '<br>✅ สร้างแบบประเมินเสร็จแล้ว — เลื่อนลงเพื่อดูหน้าคำถาม');
-        renderAnalysis(analysis);
-        renderQuestionPage(analysis);
-        setFile(null); fileInput.value = '';
+        showStatus('ok', uploadNote + '<br>✅ สร้างแบบประเมินเสร็จแล้ว — กำลังไปหน้าตรวจสอบคำถาม...');
+        goToQuestions(analysis, selectedFile ? selectedFile.name : '');
       } catch (err) {
         showStatus('err', uploadNote + '<br>❌ ' + esc(err.message));
         submitBtn.disabled = false; analyzeBtn.disabled = false;
       }
     });
 
+    // Save analysis and open the review page
+    function goToQuestions(analysis, sourceName) {
+      sessionStorage.setItem('cpftc_analysis', JSON.stringify(analysis));
+      sessionStorage.setItem('cpftc_meta', JSON.stringify({ ...meta(), sourceName: sourceName || '' }));
+      window.location.href = 'questions.html';
+    }
+
     // ---- Analyze only (no upload) ----
     analyzeBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
       analyzeBtn.disabled = true;
       showStatus('info', '<span class="spinner"></span> กำลังวิเคราะห์ด้วย AI...');
-      analysisEl.className = 'analysis';
-      $('formpage').className = 'formpage';
       try {
         const analysis = await runAnalyze(buildForm());
-        analyzeBtn.disabled = false;
-        showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว');
-        renderAnalysis(analysis);
-        renderQuestionPage(analysis);
+        showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว — กำลังไปหน้าตรวจสอบคำถาม...');
+        goToQuestions(analysis, selectedFile.name);
       } catch (err) { analyzeBtn.disabled = false; showStatus('err', '❌ ' + esc(err.message)); }
     });
 
-    function li(label, val) {
-      if (val == null || (Array.isArray(val) && !val.length)) return '';
-      const body = Array.isArray(val) ? '<ul>' + val.map(v => `<li>${esc(v)}</li>`).join('') + '</ul>' : esc(val);
-      return `<h3>${label}</h3><div class="box">${body}</div>`;
-    }
     function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-
-    function renderAnalysis(a) {
-      const cu = a.course_understanding || {};
-      const form = a.evaluation_form || {};
-      let html = '<h3>สรุปความเข้าใจหลักสูตร (Course Understanding)</h3>';
-      html += li('Course Goal', cu.course_goal);
-      html += li('Target Audience', cu.target_audience);
-      html += li('Learning Objectives', cu.key_learning_objectives);
-      html += li('Key Modules', cu.key_modules);
-      html += li('Core Skills', cu.core_skills);
-      html += li('Expected Outcomes', cu.expected_outcomes);
-      html += li('Risk / Limitation Topics', cu.risk_or_limitation_topics);
-      html += li('Evaluation Focus', cu.evaluation_focus);
-
-      if (form.sections && form.sections.length) {
-        html += `<h3>แบบประเมินที่สร้าง (Draft — ต้องผ่าน Human Review)</h3>`;
-        if (form.title) html += `<div class="box"><b>${esc(form.title)}</b>${form.instruction ? '<br>' + esc(form.instruction) : ''}</div>`;
-        form.sections.forEach(sec => {
-          html += `<div class="qsec"><b>${esc(sec.section_name)}</b>`;
-          (sec.questions || []).forEach((q, i) => {
-            html += `<div style="margin-top:6px">${i+1}. ${esc(q.question_text)} <span class="qtype">[${esc(q.question_type||'')}${q.linked_to ? ' · '+esc(q.linked_to) : ''}]</span>`;
-            if (q.answer_options && q.answer_options.length) html += '<ul>' + q.answer_options.map(o => `<li>${esc(o)}</li>`).join('') + '</ul>';
-            html += `</div>`;
-          });
-          html += `</div>`;
-        });
-      }
-      analysisEl.innerHTML = html;
-      analysisEl.className = 'analysis show';
-    }
-
-    // ---- Render the generated questions as a real question page ----
-    function renderQuestionPage(a) {
-      const fp = $('formpage');
-      const form = (a && a.evaluation_form) || {};
-      const sections = form.sections || [];
-      if (!sections.length) { fp.className = 'formpage'; fp.innerHTML = ''; return; }
-
-      const cName = $('courseName').value.trim();
-      const cCode = $('courseCode').value.trim();
-      let html = `<div class="fhead">
-        <h2>${esc(form.title || 'แบบประเมินหลังการอบรม')}</h2>
-        ${cName || cCode ? `<p><b>${esc(cName)}</b>${cCode ? ' (' + esc(cCode) + ')' : ''}</p>` : ''}
-        ${form.instruction ? `<p>${esc(form.instruction)}</p>` : ''}
-      </div>`;
-
-      let qn = 0;
-      sections.forEach((sec, si) => {
-        html += `<div class="fsec">ส่วนที่ ${si + 1}: ${esc(sec.section_name || '')}</div>`;
-        (sec.questions || []).forEach((q) => {
-          qn++;
-          const name = 'q' + qn;
-          html += `<div class="fq">
-            <div class="qtext">${qn}. ${esc(q.question_text)}</div>
-            <div class="qmeta">[${esc(q.question_type || '')}${q.linked_to ? ' · อิงจาก: ' + esc(q.linked_to) : ''}]</div>`;
-          if (q.question_type === 'rating') {
-            html += `<div class="scale">` +
-              [1,2,3,4,5].map(v => `<label><input type="radio" name="${name}" value="${v}">${v}</label>`).join('') +
-              `</div><div class="scale"><span class="hint">น้อยที่สุด</span><span class="hint" style="margin-left:auto">มากที่สุด</span></div>`;
-          } else if (q.question_type === 'multiple_choice' && q.answer_options && q.answer_options.length) {
-            html += q.answer_options.map(o =>
-              `<label class="opt"><input type="radio" name="${name}" value="${esc(o)}">${esc(o)}</label>`).join('');
-          } else {
-            html += `<textarea placeholder="พิมพ์คำตอบของคุณ..."></textarea>`;
-          }
-          html += `</div>`;
-        });
-      });
-      html += `<p class="fnote">Draft สร้างโดย AI จากไฟล์หลักการและเหตุผล — ต้องผ่าน Human Review ก่อนใช้งานจริง</p>`;
-
-      fp.innerHTML = html;
-      fp.className = 'formpage show';
-      fp.scrollIntoView({ behavior: 'smooth' });
-    }
 
     // ---- Files list ----
     async function loadFiles() {
@@ -361,7 +279,6 @@
     async function analyzeStored(repoPath, btn) {
       btn.disabled = true; btn.textContent = 'กำลังวิเคราะห์...';
       showStatus('info', '<span class="spinner"></span> กำลังวิเคราะห์ไฟล์จาก GitHub...');
-      analysisEl.className = 'analysis';
       try {
         const res = await fetch('/api/analyze', {
           method: 'POST',
@@ -370,7 +287,7 @@
         });
         const data = await res.json();
         btn.disabled = false; btn.textContent = 'วิเคราะห์';
-        if (data.ok) { showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว: ' + esc(data.sourceName)); renderAnalysis(data.analysis); renderQuestionPage(data.analysis); }
+        if (data.ok) { showStatus('ok', '✅ วิเคราะห์เสร็จแล้ว: ' + esc(data.sourceName)); goToQuestions(data.analysis, data.sourceName); }
         else showStatus('err', '❌ ' + (data.error || 'วิเคราะห์ไม่สำเร็จ'));
       } catch (err) { btn.disabled = false; btn.textContent = 'วิเคราะห์'; showStatus('err', '❌ ' + err.message); }
     }

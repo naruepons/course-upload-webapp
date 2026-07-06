@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ตรวจสอบแบบประเมิน | Review Questions</title>
+  <style>
+    :root {
+      --bg: #f4f6fb; --card: #ffffff; --primary: #2563eb; --primary-dark: #1e40af;
+      --text: #1f2937; --muted: #6b7280; --border: #e5e7eb; --ok: #16a34a; --err: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, "Segoe UI", "Sarabun", Tahoma, sans-serif;
+      display: flex; flex-direction: column; align-items: center; padding: 32px 16px 60px; gap: 14px;
+    }
+    .wrap { width: 100%; max-width: 680px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .topbar a { color: var(--primary); text-decoration: none; font-size: 14px; font-weight: 600; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    button {
+      padding: 11px 20px; border: 0; border-radius: 10px; font-size: 15px; font-weight: 600;
+      cursor: pointer; background: var(--primary); color: #fff;
+    }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    button.approve { background: var(--ok); }
+    button:hover { filter: brightness(.97); }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .status { font-size: 14px; padding: 12px 14px; border-radius: 8px; display: none; margin-bottom: 14px; }
+    .status.show { display: block; }
+    .status.ok { background: #f0fdf4; color: var(--ok); border: 1px solid #bbf7d0; }
+    .status.err { background: #fef2f2; color: var(--err); border: 1px solid #fecaca; }
+    .status.info { background: #eff6ff; color: var(--primary-dark); border: 1px solid #bfdbfe; }
+    .status a { color: inherit; font-weight: 700; }
+    .spinner { display:inline-block; width:14px; height:14px; border:2px solid #bfdbfe; border-top-color: var(--primary); border-radius:50%; animation: spin .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hint { font-size: 12px; color: var(--muted); }
+    /* summary */
+    details.summary { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; margin-bottom: 14px; font-size: 14px; }
+    details.summary summary { font-weight: 700; cursor: pointer; color: var(--primary-dark); }
+    details.summary h4 { margin: 12px 0 4px; font-size: 13px; color: var(--primary-dark); }
+    details.summary ul { margin: 2px 0; padding-left: 20px; }
+    /* form */
+    .fhead {
+      background: var(--card); border: 1px solid var(--border); border-top: 6px solid var(--primary);
+      border-radius: 12px; padding: 20px 24px; margin-bottom: 14px;
+    }
+    .fhead h2 { margin: 0 0 6px; font-size: 20px; }
+    .fhead p { margin: 0; color: var(--muted); font-size: 14px; }
+    .fhead input, .fhead textarea {
+      width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+      font-size: 15px; font-family: inherit; margin-top: 6px;
+    }
+    .fsec {
+      background: #eef2ff; color: var(--primary-dark); font-weight: 700; font-size: 15px;
+      border-radius: 10px; padding: 10px 16px; margin: 18px 0 10px;
+    }
+    .fq { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; position: relative; }
+    .fq .qtext { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .fq .qmeta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    .opt { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; }
+    .scale { display: flex; justify-content: space-between; align-items: center; gap: 4px; margin-top: 8px; }
+    .scale label { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex: 1; }
+    textarea.answer { width: 100%; min-height: 70px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: inherit; resize: vertical; }
+    .fnote { font-size: 12px; color: var(--muted); text-align: center; margin: 10px 0 0; }
+    /* edit mode */
+    .fq textarea.q-edit { width: 100%; border: 1px solid #93c5fd; border-radius: 8px; padding: 8px 10px; font-size: 15px; font-weight: 600; font-family: inherit; min-height: 44px; resize: vertical; }
+    .opt-edit { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .opt-edit input { flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 14px; }
+    .mini { padding: 5px 10px; font-size: 12px; border-radius: 6px; background: #fff; border: 1px solid var(--border); color: var(--err); width: auto; }
+    .mini.add { color: var(--primary); }
+    .del-q { position: absolute; top: 12px; right: 14px; }
+    .editing-banner { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-bottom: 14px; display: none; }
+    .editing .editing-banner { display: block; }
+    .empty-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a href="index.html">← กลับไปหน้าอัปโหลด</a>
+      <div class="actions" id="actions"></div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="editing-banner">✏️ โหมดแก้ไข — ปรับข้อความคำถาม/ตัวเลือก ลบข้อที่ไม่ต้องการ เสร็จแล้วกด "ยืนยันการแก้ไขและ Approve"</div>
+    <div id="content"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function showStatus(kind, html) { const el = $('status'); el.className = 'status show ' + kind; el.innerHTML = html; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    function hideStatus() { $('status').className = 'status'; }
+
+    let analysis = null, meta = {}, editing = false;
+    try {
+      analysis = JSON.parse(sessionStorage.getItem('cpftc_analysis') || 'null');
+      meta = JSON.parse(sessionStorage.getItem('cpftc_meta') || '{}');
+    } catch {}
+
+    if (!analysis || !analysis.evaluation_form || !(analysis.evaluation_form.sections || []).length) {
+      $('content').innerHTML = '<div class="empty-card">ยังไม่มีแบบประเมินให้ตรวจสอบ<br><br><a href="index.html">ไปอัปโหลดและวิเคราะห์ไฟล์ก่อน →</a></div>';
+    } else {
+      renderActions();
+      renderAll();
+    }
+
+    function renderActions() {
+      $('actions').innerHTML = editing
+        ? `<button class="secondary" id="cancelBtn">ยกเลิกการแก้ไข</button>
+           <button class="approve" id="confirmBtn">✔ ยืนยันการแก้ไขและ Approve</button>`
+        : `<button class="secondary" id="editBtn">✏️ แก้ไข</button>
+           <button class="approve" id="approveBtn">✔ Approve — สร้าง Google Form</button>`;
+      if (editing) {
+        $('cancelBtn').addEventListener('click', () => { editing = false; document.body.classList.remove('editing'); renderActions(); renderAll(); hideStatus(); });
+        $('confirmBtn').addEventListener('click', () => { collectEdits(); editing = false; document.body.classList.remove('editing'); renderActions(); renderAll(); approve(); });
+      } else {
+        $('editBtn').addEventListener('click', () => { editing = true; document.body.classList.add('editing'); renderActions(); renderAll(); hideStatus(); });
+        $('approveBtn').addEventListener('click', approve);
+      }
+    }
+
+    // ---------- Render ----------
+    function renderAll() {
+      const cu = analysis.course_understanding || {};
+      const form = analysis.evaluation_form || {};
+      let html = '';
+
+      // Course understanding (collapsible)
+      html += `<details class="summary"><summary>สรุปความเข้าใจหลักสูตร (Course Understanding)</summary>`;
+      html += cuItem('Course Goal', cu.course_goal);
+      html += cuItem('Target Audience', cu.target_audience);
+      html += cuItem('Learning Objectives', cu.key_learning_objectives);
+      html += cuItem('Key Modules', cu.key_modules);
+      html += cuItem('Core Skills', cu.core_skills);
+      html += cuItem('Expected Outcomes', cu.expected_outcomes);
+      html += cuItem('Evaluation Focus', cu.evaluation_focus);
+      html += `</details>`;
+
+      // Form header
+      html += `<div class="fhead">`;
+      if (editing) {
+        html += `<label class="hint">ชื่อแบบประเมิน</label><input id="f-title" value="${esc(form.title || 'แบบประเมินหลังการอบรม')}">`;
+        html += `<label class="hint">คำชี้แจง</label><textarea id="f-instruction">${esc(form.instruction || '')}</textarea>`;
+      } else {
+        html += `<h2>${esc(form.title || 'แบบประเมินหลังการอบรม')}</h2>`;
+        if (meta.courseName || meta.courseCode) html += `<p><b>${esc(meta.courseName || '')}</b>${meta.courseCode ? ' (' + esc(meta.courseCode) + ')' : ''}</p>`;
+        if (form.instruction) html += `<p>${esc(form.instruction)}</p>`;
+      }
+      html += `</div>`;
+
+      // Sections & questions
+      let qn = 0;
+      (form.sections || []).forEach((sec, si) => {
+        html += `<div class="fsec">ส่วนที่ ${si + 1}: ${esc(sec.section_name || '')}</div>`;
+        (sec.questions || []).forEach((q, qi) => {
+          qn++;
+          html += `<div class="fq" data-si="${si}" data-qi="${qi}">`;
+          if (editing) {
+            html += `<button class="mini del-q" data-del="${si}:${qi}">🗑 ลบข้อนี้</button>`;
+            html += `<div class="qmeta">ข้อ ${qn} · [${esc(q.question_type || '')}${q.linked_to ? ' · อิงจาก: ' + esc(q.linked_to) : ''}]</div>`;
+            html += `<textarea class="q-edit" data-q="${si}:${qi}">${esc(q.question_text)}</textarea>`;
+            if (q.question_type === 'multiple_choice') {
+              html += `<div class="opts" data-opts="${si}:${qi}">`;
+              (q.answer_options || []).forEach((o, oi) => {
+                html += `<div class="opt-edit"><input value="${esc(o)}" data-opt="${si}:${qi}:${oi}"><button class="mini" data-delopt="${si}:${qi}:${oi}">✕</button></div>`;
+              });
+              html += `</div><button class="mini add" data-addopt="${si}:${qi}">+ เพิ่มตัวเลือก</button>`;
+            } else if (q.question_type === 'rating') {
+              html += `<div class="hint" style="margin-top:8px">สเกลคะแนน 1–5 (น้อยที่สุด → มากที่สุด)</div>`;
+            } else {
+              html += `<div class="hint" style="margin-top:8px">คำถามปลายเปิด (ช่องพิมพ์คำตอบ)</div>`;
+            }
+          } else {
+            html += `<div class="qtext">${qn}. ${esc(q.question_text)}</div>`;
+            html += `<div class="qmeta">[${esc(q.question_type || '')}${q.linked_to ? ' · อิงจาก: ' + esc(q.linked_to) : ''}]</div>`;
+            if (q.question_type === 'rating') {
+              html += `<div class="scale">` + [1,2,3,4,5].map(v => `<label><input type="radio" name="q${qn}" value="${v}">${v}</label>`).join('') + `</div>`;
+              html += `<div class="scale"><span class="hint">น้อยที่สุด</span><span class="hint" style="margin-left:auto">มากที่สุด</span></div>`;
+            } else if (q.question_type === 'multiple_choice' && (q.answer_options || []).length) {
+              html += (q.answer_options || []).map(o => `<label class="opt"><input type="radio" name="q${qn}">${esc(o)}</label>`).join('');
+            } else {
+              html += `<textarea class="answer" placeholder="พิมพ์คำตอบของคุณ..."></textarea>`;
+            }
+          }
+          html += `</div>`;
+        });
+      });
+
+      html += `<p class="fnote">Draft สร้างโดย AI จากไฟล์หลักการและเหตุผล${meta.sourceName ? ' (' + esc(meta.sourceName) + ')' : ''} — Approve เพื่อสร้าง Google Form จริง</p>`;
+      $('content').innerHTML = html;
+
+      if (editing) bindEditEvents();
+    }
+
+    function cuItem(label, val) {
+      if (val == null || (Array.isArray(val) && !val.length)) return '';
+      const body = Array.isArray(val) ? '<ul>' + val.map(v => `<li>${esc(v)}</li>`).join('') + '</ul>' : esc(val);
+      return `<h4>${label}</h4><div>${body}</div>`;
+    }
+
+    // ---------- Edit mode ----------
+    function bindEditEvents() {
+      document.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => {
+        const [si, qi] = btn.dataset.del.split(':').map(Number);
+        collectEdits();
+        analysis.evaluation_form.sections[si].questions.splice(qi, 1);
+        renderAll();
+      }));
+      document.querySelectorAll('[data-delopt]').forEach(btn => btn.addEventListener('click', () => {
+        const [si, qi, oi] = btn.dataset.delopt.split(':').map(Number);
+        collectEdits();
+        analysis.evaluation_form.sections[si].questions[qi].answer_options.splice(oi, 1);
+        renderAll();
+      }));
+      document.querySelectorAll('[data-addopt]').forEach(btn => btn.addEventListener('click', () => {
+        const [si, qi] = btn.dataset.addopt.split(':').map(Number);
+        collectEdits();
+        const q = analysis.evaluation_form.sections[si].questions[qi];
+        q.answer_options = q.answer_options || [];
+        q.answer_options.push('ตัวเลือกใหม่');
+        renderAll();
+      }));
+    }
+
+    // Read edited values from the DOM back into `analysis`
+    function collectEdits() {
+      if (!editing) return;
+      const form = analysis.evaluation_form;
+      const t = $('f-title'); if (t) form.title = t.value.trim();
+      const ins = $('f-instruction'); if (ins) form.instruction = ins.value.trim();
+      document.querySelectorAll('.q-edit').forEach(el => {
+        const [si, qi] = el.dataset.q.split(':').map(Number);
+        form.sections[si].questions[qi].question_text = el.value.trim();
+      });
+      document.querySelectorAll('[data-opt]').forEach(el => {
+        const [si, qi, oi] = el.dataset.opt.split(':').map(Number);
+        form.sections[si].questions[qi].answer_options[oi] = el.value.trim();
+      });
+      // drop empty options / questions
+      form.sections.forEach(sec => {
+        sec.questions = (sec.questions || []).filter(q => q.question_text);
+        sec.questions.forEach(q => { if (q.answer_options) q.answer_options = q.answer_options.filter(o => o); });
+      });
+      sessionStorage.setItem('cpftc_analysis', JSON.stringify(analysis));
+    }
+
+    // ---------- Approve -> create real Google Form ----------
+    async function approve() {
+      const form = analysis.evaluation_form;
+      const total = (form.sections || []).reduce((n, s) => n + (s.questions || []).length, 0);
+      if (!total) { showStatus('err', '❌ ไม่มีคำถามเหลืออยู่ในแบบประเมิน'); return; }
+
+      document.querySelectorAll('#actions button').forEach(b => b.disabled = true);
+      showStatus('info', '<span class="spinner"></span> กำลังสร้าง Google Form (' + total + ' ข้อ)...');
+      try {
+        const res = await fetch('/api/create-form', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: form.title || 'แบบประเมินหลังการอบรม',
+            instruction: form.instruction || '',
+            courseName: meta.courseName || '',
+            courseCode: meta.courseCode || '',
+            sections: form.sections,
+          }),
+        });
+        const data = await res.json();
+        document.querySelectorAll('#actions button').forEach(b => b.disabled = false);
+        if (data.ok) {
+          showStatus('ok',
+            `✅ สร้าง Google Form สำเร็จ!<br>` +
+            (data.publishedUrl ? `📋 ลิงก์สำหรับผู้ตอบ: <a href="${data.publishedUrl}" target="_blank">${data.publishedUrl}</a><br>` : '') +
+            (data.editUrl ? `✏️ ลิงก์แก้ไขฟอร์ม (ใน Google Forms): <a href="${data.editUrl}" target="_blank">เปิดตัวแก้ไข</a>` : ''));
+        } else {
+          showStatus('err', '❌ ' + (data.error || 'สร้าง Google Form ไม่สำเร็จ'));
+        }
+      } catch (err) {
+        document.querySelectorAll('#actions button').forEach(b => b.disabled = false);
+        showStatus('err', '❌ ' + esc(err.message));
+      }
+    }
+  </script>
+</body>
+</html>
