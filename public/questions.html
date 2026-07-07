@@ -270,12 +270,16 @@
         const data = await res.json();
         document.querySelectorAll('#actions button').forEach(b => b.disabled = false);
         if (data.ok) {
+          const qrUrl = data.publishedUrl
+            ? 'https://quickchart.io/qr?size=200&margin=2&text=' + encodeURIComponent(data.publishedUrl)
+            : '';
           showStatus('ok',
             `✅ สร้าง Google Form สำเร็จ!<br>` +
             (data.publishedUrl ? `📋 ลิงก์สำหรับผู้ตอบ: <a href="${data.publishedUrl}" target="_blank">${data.publishedUrl}</a><br>` : '') +
             (data.editUrl ? `✏️ ลิงก์แก้ไขฟอร์ม (ใน Google Forms): <a href="${data.editUrl}" target="_blank">เปิดตัวแก้ไข</a><br>` : '') +
-            (data.emailSent ? `📧 ส่งลิงก์ไปที่อีเมล <b>${esc(meta.uploaderEmail)}</b> แล้ว` :
-              (meta.uploaderEmail ? `⚠️ ส่งอีเมลไม่สำเร็จ${data.emailError ? ' (' + esc(data.emailError) + ')' : ''} — คัดลอกลิงก์ด้านบนได้เลย` : '')));
+            (data.emailSent ? `📧 ส่งลิงก์พร้อม QR Code ไปที่อีเมล <b>${esc(meta.uploaderEmail)}</b> แล้ว<br>` :
+              (meta.uploaderEmail ? `⚠️ ส่งอีเมลไม่สำเร็จ${data.emailError ? ' (' + esc(data.emailError) + ')' : ''} — คัดลอกลิงก์ด้านบนได้เลย<br>` : '')) +
+            (qrUrl ? `<br>📱 QR Code สำหรับสแกนตอบแบบประเมิน (คลิกขวาเพื่อบันทึกรูป):<br><img src="${qrUrl}" width="180" alt="QR Code" style="margin-top:6px;border:1px solid #bbf7d0;border-radius:8px;background:#fff;padding:6px">` : ''));
         } else {
           showStatus('err', '❌ ' + (data.error || 'สร้าง Google Form ไม่สำเร็จ'));
         }
