@@ -32,7 +32,7 @@
     h2 { font-size: 17px; margin: 0 0 14px; }
     .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
     label { display: block; font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
-    input[type="text"] {
+    input[type="text"], input[type="email"] {
       width: 100%; padding: 10px 12px; border: 1px solid var(--border);
       border-radius: 8px; font-size: 14px;
     }
@@ -129,6 +129,10 @@
       </div>
     </div>
 
+    <label for="uploaderEmail">อีเมลผู้อัปโหลด <span style="color:var(--err)">*</span></label>
+    <input type="email" id="uploaderEmail" placeholder="เช่น somchai.s@cpf.co.th" required />
+    <p class="hint">ระบบจะส่งลิงก์ Google Form ไปที่อีเมลนี้หลังกด Approve</p>
+
     <label>ไฟล์หลักการและเหตุผล (Word / PDF)</label>
     <div class="dropzone" id="dropzone">
       <p><strong>คลิกเพื่อเลือกไฟล์</strong> หรือลากไฟล์มาวางที่นี่</p>
@@ -163,7 +167,20 @@
 
     function headers() { return UPLOAD_KEY ? { 'x-upload-key': UPLOAD_KEY } : {}; }
     function meta() {
-      return { courseName: $('courseName').value, courseCode: $('courseCode').value };
+      return {
+        courseName: $('courseName').value,
+        courseCode: $('courseCode').value,
+        uploaderEmail: $('uploaderEmail').value.trim(),
+      };
+    }
+    function emailOk() {
+      const em = $('uploaderEmail').value.trim();
+      if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+        showStatus('err', '❌ กรุณากรอกอีเมลผู้อัปโหลดให้ถูกต้องก่อน (จำเป็นสำหรับส่งลิงก์ Google Form)');
+        $('uploaderEmail').focus();
+        return false;
+      }
+      return true;
     }
     function setFile(file) {
       selectedFile = file;
@@ -200,6 +217,7 @@
     // ---- Submit: upload -> AI analyze (หลักการและเหตุผล) -> render question page ----
     submitBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
+      if (!emailOk()) return;
       submitBtn.disabled = true; analyzeBtn.disabled = true;
       const fileForUpload = buildForm();
       const fileForAnalyze = buildForm();
@@ -243,6 +261,7 @@
     // ---- Analyze only (no upload) ----
     analyzeBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
+      if (!emailOk()) return;
       analyzeBtn.disabled = true;
       showStatus('info', '<span class="spinner"></span> กำลังวิเคราะห์ด้วย AI...');
       try {
@@ -276,6 +295,7 @@
     }
 
     async function analyzeStored(repoPath, btn) {
+      if (!emailOk()) return;
       btn.disabled = true; btn.textContent = 'กำลังวิเคราะห์...';
       showStatus('info', '<span class="spinner"></span> กำลังวิเคราะห์ไฟล์จาก GitHub...');
       try {

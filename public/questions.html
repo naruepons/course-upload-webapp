@@ -263,6 +263,7 @@
             instruction: form.instruction || '',
             courseName: meta.courseName || '',
             courseCode: meta.courseCode || '',
+            uploaderEmail: meta.uploaderEmail || '',
             sections: form.sections,
           }),
         });
@@ -272,7 +273,9 @@
           showStatus('ok',
             `✅ สร้าง Google Form สำเร็จ!<br>` +
             (data.publishedUrl ? `📋 ลิงก์สำหรับผู้ตอบ: <a href="${data.publishedUrl}" target="_blank">${data.publishedUrl}</a><br>` : '') +
-            (data.editUrl ? `✏️ ลิงก์แก้ไขฟอร์ม (ใน Google Forms): <a href="${data.editUrl}" target="_blank">เปิดตัวแก้ไข</a>` : ''));
+            (data.editUrl ? `✏️ ลิงก์แก้ไขฟอร์ม (ใน Google Forms): <a href="${data.editUrl}" target="_blank">เปิดตัวแก้ไข</a><br>` : '') +
+            (data.emailSent ? `📧 ส่งลิงก์ไปที่อีเมล <b>${esc(meta.uploaderEmail)}</b> แล้ว` :
+              (meta.uploaderEmail ? `⚠️ ส่งอีเมลไม่สำเร็จ${data.emailError ? ' (' + esc(data.emailError) + ')' : ''} — คัดลอกลิงก์ด้านบนได้เลย` : '')));
         } else {
           showStatus('err', '❌ ' + (data.error || 'สร้าง Google Form ไม่สำเร็จ'));
         }
