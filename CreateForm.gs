@@ -47,16 +47,32 @@ function doPost(e) {
     if (data.uploaderEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.uploaderEmail)) {
       try {
         const courseLine = (data.courseName || '') + (data.courseCode ? ' (' + data.courseCode + ')' : '');
-        MailApp.sendEmail({
+
+        // สร้าง QR Code ของลิงก์ผู้ตอบ (ผ่าน quickchart.io)
+        let qrBlob = null;
+        try {
+          qrBlob = UrlFetchApp
+            .fetch('https://quickchart.io/qr?size=300&margin=2&text=' + encodeURIComponent(form.getPublishedUrl()))
+            .getBlob()
+            .setName('QR-แบบประเมิน' + (data.courseCode ? '-' + data.courseCode : '') + '.png');
+        } catch (qrErr) { /* ถ้าสร้าง QR ไม่ได้ ส่งอีเมลแบบไม่มี QR แทน */ }
+
+        const mail = {
           to: data.uploaderEmail,
           subject: '✅ Google Form แบบประเมินพร้อมใช้งาน' + (courseLine ? ' — ' + courseLine : ''),
           htmlBody:
             '<p>สวัสดีครับ/ค่ะ</p>' +
             '<p>ระบบได้สร้าง Google Form แบบประเมินหลังการอบรม' + (courseLine ? ' สำหรับหลักสูตร <b>' + courseLine + '</b>' : '') + ' เรียบร้อยแล้ว</p>' +
             '<p>📋 <b>ลิงก์สำหรับส่งให้ผู้ตอบแบบประเมิน:</b><br><a href="' + form.getPublishedUrl() + '">' + form.getPublishedUrl() + '</a></p>' +
+            (qrBlob ? '<p>📱 <b>QR Code สำหรับสแกนตอบแบบประเมิน</b> (ไฟล์แนบในอีเมลนี้ นำไปใส่สไลด์/โปสเตอร์ได้เลย):<br><img src="cid:qrform" width="220" alt="QR Code"></p>' : '') +
             '<p>✏️ <b>ลิงก์สำหรับแก้ไขฟอร์ม / ดูคำตอบ (Google Forms):</b><br><a href="' + form.getEditUrl() + '">' + form.getEditUrl() + '</a></p>' +
             '<p style="color:#888;font-size:12px">อีเมลนี้ส่งอัตโนมัติจากระบบ Course Upload Webapp (CPFTC)</p>',
-        });
+        };
+        if (qrBlob) {
+          mail.inlineImages = { qrform: qrBlob };
+          mail.attachments = [qrBlob];
+        }
+        MailApp.sendEmail(mail);
         emailSent = true;
       } catch (mailErr) {
         emailError = String(mailErr);
