@@ -41,12 +41,36 @@ function doPost(e) {
       });
     });
 
+    // ส่งอีเมลแจ้งลิงก์ฟอร์มให้ผู้อัปโหลด (ถ้ามีการระบุอีเมลมา)
+    let emailSent = false;
+    let emailError = '';
+    if (data.uploaderEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.uploaderEmail)) {
+      try {
+        const courseLine = (data.courseName || '') + (data.courseCode ? ' (' + data.courseCode + ')' : '');
+        MailApp.sendEmail({
+          to: data.uploaderEmail,
+          subject: '✅ Google Form แบบประเมินพร้อมใช้งาน' + (courseLine ? ' — ' + courseLine : ''),
+          htmlBody:
+            '<p>สวัสดีครับ/ค่ะ</p>' +
+            '<p>ระบบได้สร้าง Google Form แบบประเมินหลังการอบรม' + (courseLine ? ' สำหรับหลักสูตร <b>' + courseLine + '</b>' : '') + ' เรียบร้อยแล้ว</p>' +
+            '<p>📋 <b>ลิงก์สำหรับส่งให้ผู้ตอบแบบประเมิน:</b><br><a href="' + form.getPublishedUrl() + '">' + form.getPublishedUrl() + '</a></p>' +
+            '<p>✏️ <b>ลิงก์สำหรับแก้ไขฟอร์ม / ดูคำตอบ (Google Forms):</b><br><a href="' + form.getEditUrl() + '">' + form.getEditUrl() + '</a></p>' +
+            '<p style="color:#888;font-size:12px">อีเมลนี้ส่งอัตโนมัติจากระบบ Course Upload Webapp (CPFTC)</p>',
+        });
+        emailSent = true;
+      } catch (mailErr) {
+        emailError = String(mailErr);
+      }
+    }
+
     return ContentService
       .createTextOutput(JSON.stringify({
         ok: true,
         formId: form.getId(),
         editUrl: form.getEditUrl(),
         publishedUrl: form.getPublishedUrl(),
+        emailSent: emailSent,
+        emailError: emailError,
       }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
